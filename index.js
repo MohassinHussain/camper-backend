@@ -85,9 +85,9 @@ app.post('/auth/login', async (req, res) => {
 
     res.cookie("auth_token", token, {
       httpOnly: true,
-      secure: true, // set to true in production with HTTPS
+      secure: true,
       sameSite: "Strict", 
-      maxAge: 60 * 60 * 1000, // 1 hour
+      maxAge: 60 * 60 * 1000, // 1h
     });
 
     res.status(200).json({ message: 'Login successful', data: user });
@@ -117,7 +117,7 @@ app.get("/logged-in", (req, res) => {
 app.post('/logout', (req, res) => {
   res.clearCookie('auth_token', {
     httpOnly: true,
-    secure: false, // true in production
+    secure: false,
     sameSite: 'Lax'
   });
   res.status(200).json({ message: 'Logged out' });
@@ -167,7 +167,6 @@ app.post('/addCandidate', async (req, res) => {
   try {
     const data = req.body;
 
-    // Optional: Check if candidate with same email exists
     const existing = await Candidate.findOne({ email: data.email });
     if (existing) {
       return res.status(409).json({ message: "Candidate already exists" });
@@ -195,14 +194,38 @@ app.get("/fetch-candidates", async (req, res) => {
 });
 
 
+// app.delete("/delete-candidate/:id", async (req, res) => {
+//   try {
+//     const { id } = req.params;
+//     const deleted = await Candidate.findByIdAndDelete(id);
+//     if (!deleted) {
+//       return res.status(404).json({ message: "Candidate not found" });
+//     }
+//     res.status(200).json({ message: "Candidate deleted successfully" });
+//   } catch (err) {
+//     console.error("Delete error:", err);
+//     res.status(500).json({ message: "Server error" });
+//   }
+// });
+
+
 app.delete("/delete-candidate/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    const deleted = await Candidate.findByIdAndDelete(id);
-    if (!deleted) {
+
+    const candidate = await Candidate.findById(id);
+    if (!candidate) {
       return res.status(404).json({ message: "Candidate not found" });
     }
-    res.status(200).json({ message: "Candidate deleted successfully" });
+
+    const candidateEmail = candidate.email;
+
+    await Candidate.findByIdAndDelete(id);
+    await Message.deleteMany({ candidateEmail });
+
+    res.status(200).json({
+      message: "Candidate and related messages deleted successfully",
+    });
   } catch (err) {
     console.error("Delete error:", err);
     res.status(500).json({ message: "Server error" });
@@ -284,8 +307,7 @@ app.get("/notifications/:userEmail", async (req, res) => {
     res.status(500).json({ error: "Failed to fetch notifications." });
   }
 });
-
-// Helper (Example)
+//helper
 async function getCandidateEmailsByManager(email) {
   const candidates = await Candidate.find({
     "managers.email": email
